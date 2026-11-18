@@ -27,7 +27,6 @@ Formato: `<tipo>/<descripcion-corta-en-kebab-case>`
 |------------|---------------------------------------------|
 | `feat`     | Nueva funcionalidad                         |
 | `fix`      | Corrección de un bug                        |
-| `hotfix`   | Corrección urgente sobre producción         |
 | `refactor` | Cambio interno sin alterar comportamiento   |
 | `docs`     | Solo documentación                          |
 | `test`     | Agregar o corregir pruebas                  |
@@ -35,7 +34,7 @@ Formato: `<tipo>/<descripcion-corta-en-kebab-case>`
 | `ci`       | Pipelines y automatizaciones                |
 | `perf`     | Mejoras de rendimiento                      |
 
-Ejemplos: `feat/login-con-google`, `fix/crash-al-abrir-rutina`, `chore/actualizar-expo`.
+Ejemplos: `feat/escaneo-de-recibos`, `fix/precio-duplicado-al-guardar`, `chore/actualizar-drizzle`.
 
 ## 4. Commits (Conventional Commits)
 
@@ -55,51 +54,42 @@ Reglas:
 - Usa los mismos tipos que en las ramas (`feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `ci`, `perf`).
 - Cambios que rompen compatibilidad: agrega `!` después del tipo (`feat!: ...`) y un footer `BREAKING CHANGE:`.
 - Prohibido: mensajes como "fix", "cambios", "wip", "asdf", "update".
+- Sin atribución a Devin ni `Co-Authored-By`. Autor único: `Michael Garcia <53796898+michaelgarciast@users.noreply.github.com>` (pásalo con `git -c user.name=... -c user.email=... commit`, sin tocar la config de git).
 
 Ejemplos:
 ```
-feat(auth): agregar inicio de sesión con Google
-fix(rutinas): evitar crash cuando la lista de series está vacía
-refactor(api): extraer cliente HTTP a un módulo independiente
-chore(deps): actualizar expo a la última versión estable
+feat(recibos): agregar escaneo de recibos con gemini
+fix(precios): evitar duplicados al guardar un recibo
+refactor(storage): extraer subida de archivos a un servicio
+chore(deps): actualizar drizzle-orm
 ```
 
-## 5. Checklist antes de hacer push (NestJS + Bun)
+## 5. Verificación antes de hacer push (NestJS + Bun)
 
-Usa siempre Bun, nunca `npm`, `yarn` ni `pnpm`. Ejecuta en este orden y **no hagas push si algo falla**:
+Usa siempre Bun, nunca `npm`, `yarn` ni `pnpm`. Los hooks de Husky ya validan en cada commit (`pre-commit`: lint + tipos; `commit-msg`: commitlint) y CI corre lint, tipos, tests y build en cada PR. Antes de pushear solo falta:
 
-1. `bun run lint`
-2. `bunx tsc --noEmit` (chequeo de tipos)
-3. `bun run test` (unitarios)
-4. `bun run test:e2e` (si existen pruebas e2e)
-5. `bun run build`
-6. `git diff --staged` (revisar el diff completo)
-7. Verificar que no haya secretos, `.env`, `dist/`, `node_modules/`, `console.log` ni código comentado
+1. `bun run test`
+2. `bun run test:e2e` si el cambio toca la base de datos, storage o endpoints (usa la DB real de Neon del `.env`, por eso no corre en CI).
+3. Revisar el diff: sin secretos, `.env`, `dist/`, `node_modules/`, `console.log` ni código comentado.
 
-Importante: usa `bun run test`, **no** `bun test`. Este último ejecuta el test runner nativo de Bun e ignora la configuración de Jest que trae Nest por defecto. Si algún script no existe en `package.json`, omítelo y avísame; no lo inventes.
+Usa `bun run test`, **no** `bun test`: este último ejecuta el test runner nativo de Bun en lugar de Vitest.
 
-Dependencias: usa `bun add` / `bun add -d` / `bun remove`. Commitea siempre el lockfile (`bun.lock`, o `bun.lockb` en versiones antiguas de Bun) junto con `package.json`, en un commit `chore(deps)` separado de la lógica. No agregues otros lockfiles (`package-lock.json`, `pnpm-lock.yaml`) al repositorio.
+Dependencias: usa `bun add` / `bun add -d` / `bun remove`. Commitea siempre `bun.lock` junto con `package.json`, en un commit `chore(deps)` separado de la lógica. No agregues otros lockfiles (`package-lock.json`, `pnpm-lock.yaml`) al repositorio.
 
 ## 6. Mantener la rama actualizada
 
-Antes de abrir el PR:
+Como el merge es squash, no hace falta reescribir la rama. Actualízala solo si GitHub reporta conflictos o la rama se quedó atrás de un cambio relevante:
 
 ```bash
 git fetch origin
-git rebase origin/main
+git merge origin/main
 ```
 
-Si hay conflictos, resuélvelos con cuidado, vuelve a correr el checklist y solo entonces haz:
-
-```bash
-git push --force-with-lease
-```
-
-(Nunca `--force` a secas. Y jamás force push a `main`.)
+Nunca `git push --force` a secas, y jamás force push a `main`.
 
 ## 7. Pull Request
 
-Título con formato Conventional Commit, por ejemplo: `feat(auth): agregar inicio de sesión con Google`.
+Título con formato Conventional Commit, por ejemplo: `feat(recibos): agregar escaneo de recibos con gemini`.
 
 Descripción con esta plantilla:
 
@@ -113,11 +103,9 @@ Descripción con esta plantilla:
 ## ¿Cómo se probó?
 <pasos o comandos>
 
-## Capturas / notas (si aplica)
-
 ## Checklist
-- [ ] Lint, tipos y tests pasan
-- [ ] Sin secretos ni código muerto
+- [ ] CI en verde
+- [ ] e2e corridos (si aplica)
 - [ ] Documentación actualizada (si aplica)
 ```
 
@@ -128,8 +116,8 @@ Reglas del PR:
 ## 8. Merge
 
 - Usa **Squash and merge** para dejar un historial lineal, con un commit por PR que siga Conventional Commits.
-- Elimina la rama remota y local después del merge.
-- Después sincroniza:
+- No hagas merge con CI fallando o pendiente.
+- Elimina la rama remota y local después del merge, y sincroniza:
 
 ```bash
 git checkout main
@@ -137,29 +125,7 @@ git pull origin main
 git branch -d <rama>
 ```
 
-## 9. Versionado y releases (SemVer)
-
-- Versión `MAJOR.MINOR.PATCH`:
-  - `fix` → PATCH
-  - `feat` → MINOR
-  - `BREAKING CHANGE` → MAJOR
-- Para publicar una versión:
-
-```bash
-git checkout main && git pull origin main
-git tag -a vX.Y.Z -m "release: vX.Y.Z"
-git push origin vX.Y.Z
-```
-
-- Mantén un `CHANGELOG.md` actualizado, agrupado por tipo (Features, Fixes, etc.).
-
-## 10. Hotfixes
-
-1. Crea `hotfix/<descripcion>` desde `main`.
-2. Corrige con el mínimo cambio posible y agrega un test que reproduzca el bug.
-3. PR → merge → tag con PATCH incrementado.
-
-## 11. Prohibiciones
+## 9. Prohibiciones
 
 - Push directo a `main`.
 - `git push --force` sin `--with-lease`, o force push a `main`.
@@ -167,11 +133,11 @@ git push origin vX.Y.Z
 - Mezclar cambios no relacionados en una misma rama o PR.
 - Ignorar errores de lint, tipos o tests para "subir rápido".
 
-## 12. Cómo debes reportarme
+## 10. Cómo debes reportarme
 
 Antes de ejecutar `git push`, muéstrame:
 1. El nombre de la rama.
 2. La lista de commits (`git log --oneline origin/main..HEAD`).
-3. El resultado del checklist.
+3. El resultado de la verificación.
 
 Espera mi confirmación antes de pushear o hacer merge.
