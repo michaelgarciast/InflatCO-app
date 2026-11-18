@@ -6,6 +6,7 @@ COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
 
 FROM base AS dev
+RUN apk add --no-cache git
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 COPY . .

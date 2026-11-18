@@ -39,6 +39,6 @@ When a task depends on how the app behaves in production - an error users hit, a
 - Stack decisions: Neon Postgres + Neon Object Storage (S3, `forcePathStyle: true`), Drizzle, `@nestjs/authentication` (session cookie), `@nestjs/ai` + `@ai-sdk/google` (`gemini-3.5-flash-lite`), deploy on Render. Multi-user data model (every owned table has `user_id`, every query filters by the session user, foreign resources return 404), one user at launch. Colombia only: amounts are integer COP.
 - Keep it simple: modular monolith, controller → service → Drizzle, feature modules (`module`/`controller`/`service`/`schemas`), services use Drizzle directly, no repository layer or speculative abstractions.
 - Comments only when needed: short, technical, explaining *why*. No comments that restate the code, no obvious JSDoc, no banners.
-- No local Node/npm: everything runs with Bun (or Docker). Neon CLI via `bunx neon`.
+- Nothing is installed on the host (no Bun, Node or npm): everything runs in Docker. `./dev.sh` for the dev server, `./run.sh <cmd>` for anything else (`./run.sh bun add x`, `./run.sh bunx neon ...`). After changing dependencies, rebuild with `docker build --target dev -t backend-dev .`.
 - Zod 4: import as `import * as z from 'zod'`. `import { z } from 'zod'` is `undefined` under Vitest.
-- Verify: `bun run build`, `bun run lint`, `bun run test`, `bun run test:e2e` (hits the real Neon DB from `.env`). Migrations: `bun run db:generate` / `bun run db:migrate` (uses `DATABASE_URL_UNPOOLED`).
+- Verify: `./run.sh bun run build`, `./run.sh bun run lint`, `./run.sh bun run test`, `./run.sh bun run test:e2e` (hits the real Neon DB from `.env`). Migrations: `./run.sh bun run db:generate` / `./run.sh bun run db:migrate` (uses `DATABASE_URL_UNPOOLED`).
