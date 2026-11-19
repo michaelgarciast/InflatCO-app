@@ -21,6 +21,7 @@
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "user:create": "bun scripts/user-create.ts",
     "prepare": "husky"
   },
   "dependencies": {
