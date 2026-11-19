@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { Public } from '@nestjs/authentication';
 import { InjectDrizzle } from '@nestjs/drizzle';
 import { sql } from 'drizzle-orm';
 import type { NeonDatabase } from 'drizzle-orm/neon-serverless';
@@ -10,6 +11,7 @@ export class HealthController {
     @InjectDrizzle() private readonly db: NeonDatabase<typeof schema>,
   ) {}
 
+  @Public()
   @Get('health')
   async health() {
     await this.db.execute(sql`select 1`);

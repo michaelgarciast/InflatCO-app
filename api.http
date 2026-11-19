@@ -1,4 +1,24 @@
 @host = http://localhost:3000
+@proxySecret = {{$dotenv PROXY_SECRET}}
 
-### Health (sin auth)
+### Health (público, sin auth ni proxy secret)
 GET {{host}}/health
+
+### Sign In
+POST {{host}}/auth/sign-in
+Content-Type: application/json
+X-Proxy-Secret: {{proxySecret}}
+
+{
+  "email": "test@example.com",
+  "password": "newpassword1234"
+}
+
+### Current User (Me)
+GET {{host}}/me
+X-Proxy-Secret: {{proxySecret}}
+
+### Sign Out
+POST {{host}}/auth/sign-out
+X-Proxy-Secret: {{proxySecret}}
+
