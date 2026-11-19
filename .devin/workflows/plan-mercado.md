@@ -1,7 +1,7 @@
 # Plan: App de facturas de mercado (Backend)
 
 > Documento vivo. Se actualiza antes y durante cada fase.
-> Estado: **Plan simplificado — listo para Fase 0**
+> Estado: **Fase 1 completada — siguiente: Fase 2**
 
 ## Objetivo
 
@@ -251,12 +251,12 @@ Paginación simple: `?page=&limit=`.
 **Hecho cuando:** la app arranca, conecta a Neon y `/health` responde OK.
 
 ### Fase 1 — Autenticación
-- [ ] Tablas `users` + `sessions`
-- [ ] Script `user:create` (mínimo 12 caracteres; al cambiar la contraseña borra las sesiones)
-- [ ] Sign-in / sign-out / me + guard global + throttler en sign-in (por email + `X-Client-IP`)
-- [ ] Guard de `X-Proxy-Secret` (excepto `/health`)
-- [ ] Log de logins fallidos (sin datos sensibles)
-- [ ] Tests: login OK, contraseña mala, sin cookie → 401, sin `X-Proxy-Secret` → 401, 6.º intento → 429
+- [x] Tablas `users` + `sessions`
+- [x] Script `user:create` (mínimo 12 caracteres; al cambiar la contraseña borra las sesiones)
+- [x] Sign-in / sign-out / me + guard global + throttler en sign-in (por email + `X-Client-IP`)
+- [x] Guard de `X-Proxy-Secret` (excepto `/health`)
+- [x] Log de logins fallidos (sin datos sensibles)
+- [x] Tests: login OK, contraseña mala, sin cookie → 401, sin `X-Proxy-Secret` → 401, 6.º intento → 429
 
 **Hecho cuando:** sin sesión no se puede usar la API.
 
@@ -337,3 +337,5 @@ Paginación simple: `?page=&limit=`.
 | 2026-11-18 | Arquitectura: monolito modular (controller → service → Drizzle) con estructura de carpetas definida. **Multiusuario desde el modelo**: vuelve `user_id` a `stores`, `receipts`, `receipt_images`, `products`, únicos por usuario, llaves del bucket por usuario, 404 en recursos ajenos y tests de aislamiento. Se agrega *Camino de crecimiento* (registro, Habeas Data, cuota de Gemini, planes pagos) |
 | 2026-11-18 | Fase 0 casi lista: proyecto `InflatCO-app` en Neon (aws-us-east-2) con bucket `receipts`, `neon.ts` + `neon deploy` provisionan los servicios y escriben `.env`. Neon entrega vars `AWS_*` (no `S3_*`); `S3_BUCKET` y `PROXY_SECRET` se agregan a mano. Drizzle con `@nestjs/drizzle` + `drizzle-orm/neon-serverless` (pooled para la app, `DATABASE_URL_UNPOOLED` para migraciones), `S3Disk` con `forcePathStyle`, `/health` responde OK. Skills de Neon instaladas en `.devin/skills/`. Pendiente: API key de Gemini |
 | 2026-11-18 | Limpieza de sobreingeniería: fuera `ws` y `@neon/env` (sin uso), `@neon/config` a devDependencies, `neon.ts` solo con el bucket, vars de Gemini salen del env hasta la Fase 2, se borra el Hello World del scaffold (el e2e ahora prueba `/health`), `package.json` alineado con Bun |
+| 2026-11-18 | Fase 1 completada: tablas `users` y `sessions` migradas a Neon, script `user:create` con scrypt y reseteo de sesiones, autenticación por cookies `__Host-session` con `@nestjs/authentication`, `ProxySecretGuard` global protegiendo todos los endpoints (salvo `/health`), throttler en login por `${email}|${clientIp}`, log seguro de logins fallidos, y suite de tests e2e pasando al 100%. |
+| 2026-11-19 | Revisión de la Fase 1: `PROXY_SECRET` fuera de `api.http` (`{{$dotenv PROXY_SECRET}}`), `normalizeEmail` único en `common/email.ts` (el script no aplicaba NFC), test de `X-Proxy-Secret` sobre `POST /auth/sign-in` (antes pasaba aunque no hubiera guard), los e2e borran su usuario de prueba, `AuthenticationModule.forRoot` sin repetir los defaults de la cookie, `UsersService` con `select` de columnas, `normalizeIp` en el throttler, `z.email()` |
