@@ -3,7 +3,11 @@ import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthenticationModule } from '@nestjs/authentication';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { S3Disk, StorageModule, type StorageModuleOptions } from '@nestjs/storage';
+import {
+  S3Disk,
+  StorageModule,
+  type StorageModuleOptions,
+} from '@nestjs/storage';
 import { validateEnv } from './config/env.js';
 import { DbModule } from './db/db.module.js';
 import { HealthController } from './health.controller.js';
@@ -12,6 +16,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { StoresModule } from './stores/stores.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { ReceiptsModule } from './receipts/receipts.module.js';
+import { InsightsModule } from './insights/insights.module.js';
 import { ProxySecretGuard } from './common/proxy-secret.guard.js';
 
 @Module({
@@ -33,6 +38,7 @@ import { ProxySecretGuard } from './common/proxy-secret.guard.js';
     StoresModule,
     ProductsModule,
     ReceiptsModule,
+    InsightsModule,
     StorageModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService): StorageModuleOptions => ({
