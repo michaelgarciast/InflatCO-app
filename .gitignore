@@ -7,3 +7,7 @@ coverage
 *.tsbuildinfo
 .DS_Store
 .neon
+# Foto de prueba de api.http: es una factura real
+factura.jpg
+# Colección de Bruno: solo local (fotos reales de facturas)
+bruno-api/

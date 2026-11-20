@@ -22,3 +22,53 @@ X-Proxy-Secret: {{proxySecret}}
 POST {{host}}/auth/sign-out
 X-Proxy-Secret: {{proxySecret}}
 
+### Tiendas (q opcional)
+GET {{host}}/stores?q=exito
+X-Proxy-Secret: {{proxySecret}}
+
+### Editar tienda
+PATCH {{host}}/stores/REEMPLAZAR-STORE-ID
+Content-Type: application/json
+X-Proxy-Secret: {{proxySecret}}
+
+{
+  "type": "cadena",
+  "nit": "900123456-1"
+}
+
+### Subir factura (1 o 2 fotos en "images"; storeId o storeName + storeType)
+POST {{host}}/receipts
+X-Proxy-Secret: {{proxySecret}}
+Content-Type: multipart/form-data; boundary=factura
+
+--factura
+Content-Disposition: form-data; name="storeName"
+
+Éxito
+--factura
+Content-Disposition: form-data; name="storeType"
+
+cadena
+--factura
+Content-Disposition: form-data; name="images"; filename="factura.jpg"
+Content-Type: image/jpeg
+
+< ./factura.jpg
+--factura--
+
+### Reintentar fotos (solo si la factura quedó unreadable)
+PUT {{host}}/receipts/REEMPLAZAR-RECEIPT-ID/images
+X-Proxy-Secret: {{proxySecret}}
+Content-Type: multipart/form-data; boundary=factura
+
+--factura
+Content-Disposition: form-data; name="images"; filename="factura.jpg"
+Content-Type: image/jpeg
+
+< ./factura.jpg
+--factura--
+
+### URLs firmadas (5 min) de las fotos
+GET {{host}}/receipts/REEMPLAZAR-RECEIPT-ID/images
+X-Proxy-Secret: {{proxySecret}}
+
