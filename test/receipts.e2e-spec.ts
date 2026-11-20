@@ -187,7 +187,7 @@ describe('Receipts (e2e)', () => {
       quantity: '2.000',
       productId: null,
     });
-    expect(res.body.items[0].suggestedProduct.name).toBe('Leche entera');
+    expect(res.body.items[0].newProduct.name).toBe('Leche entera');
     // Un id que no está en el catálogo del usuario no se guarda.
     expect(res.body.items[1].productId).toBeNull();
     expect(userKeys('a')).toHaveLength(1);
