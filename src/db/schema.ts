@@ -14,6 +14,13 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
+export interface NewProduct {
+  name: string;
+  category: string;
+  baseUnit: 'g' | 'ml' | 'und';
+  baseSize: number;
+}
+
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
@@ -173,6 +180,10 @@ export const receiptItems = pgTable(
     lineTotal: integer('line_total').notNull(),
     unitPriceBase: numeric('unit_price_base', { precision: 12, scale: 4 }),
     confirmed: boolean('confirmed').notNull().default(false),
+    // Orden de la línea en la factura: sin esto la lista cambia de orden con cada UPDATE.
+    position: integer('position').notNull(),
+    // Producto que se crea al confirmar la factura si la línea no tiene productId.
+    newProduct: jsonb('new_product').$type<NewProduct>(),
   },
   (table) => [index('receipt_items_receipt_id_idx').on(table.receiptId)],
 );
