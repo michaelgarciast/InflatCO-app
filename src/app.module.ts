@@ -9,6 +9,9 @@ import { DbModule } from './db/db.module.js';
 import { HealthController } from './health.controller.js';
 import { UsersModule } from './users/users.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { StoresModule } from './stores/stores.module.js';
+import { ProductsModule } from './products/products.module.js';
+import { ReceiptsModule } from './receipts/receipts.module.js';
 import { ProxySecretGuard } from './common/proxy-secret.guard.js';
 
 @Module({
@@ -27,6 +30,9 @@ import { ProxySecretGuard } from './common/proxy-secret.guard.js';
     ]),
     UsersModule,
     AuthModule,
+    StoresModule,
+    ProductsModule,
+    ReceiptsModule,
     StorageModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService): StorageModuleOptions => ({

@@ -1,7 +1,7 @@
 # Plan: App de facturas de mercado (Backend)
 
 > Documento vivo. Se actualiza antes y durante cada fase.
-> Estado: **Fase 1 completada — siguiente: Fase 2**
+> Estado: **Fase 2 completada — siguiente: Fase 3**
 
 ## Objetivo
 
@@ -261,14 +261,15 @@ Paginación simple: `?page=&limit=`.
 **Hecho cuando:** sin sesión no se puede usar la API.
 
 ### Fase 2 — Subir y extraer
-- [ ] Tablas `stores`, `receipts`, `receipt_images`, `receipt_items`, `products`
-- [ ] `GET /stores?q=` y `PATCH /stores/:id`
-- [ ] `POST /receipts` con 1 o 2 fotos: límites de multer, tipo por magic bytes (jpeg/png/webp/heic, ≤ 10 MB c/u), hash duplicado del mismo usuario → 409, llave `users/{userId}/receipts/{uuid}`, subir a storage, llamar a Gemini, guardar `draft` o `unreadable`
-- [ ] Schema Zod de la salida de Gemini con `readable` + motivo y límites (cantidades, precios, fecha, longitudes)
-- [ ] `PUT /receipts/:id/images` (reintentar fotos, solo en `unreadable`)
-- [ ] Si Gemini falla: borrar las fotos y responder 502
-- [ ] `GET /receipts/:id/images` → URLs firmadas de 5 min
-- [ ] Tests con respuesta de Gemini simulada (incluye foto ilegible, 2 fotos, 3 fotos → 400, salida inválida y archivo que no es imagen)
+- [x] Tablas `stores`, `receipts`, `receipt_images`, `receipt_items`, `products`
+- [x] `GET /stores?q=` y `PATCH /stores/:id`
+- [x] `POST /receipts` con 1 o 2 fotos: límites de multer, tipo por magic bytes (jpeg/png/webp/heic, ≤ 10 MB c/u), hash duplicado del mismo usuario → 409, llave `users/{userId}/receipts/{uuid}`, subir a storage, llamar a Gemini, guardar `draft` o `unreadable`
+- [x] Schema Zod de la salida de Gemini con `readable` + motivo y límites (cantidades, precios, fecha, longitudes)
+- [x] `PUT /receipts/:id/images` (reintentar fotos, solo en `unreadable`)
+- [x] Si Gemini falla: borrar las fotos y responder 502
+- [x] `GET /receipts/:id/images` → URLs firmadas de 5 min
+- [x] Tests con respuesta de Gemini simulada (incluye foto ilegible, 2 fotos, 3 fotos → 400, salida inválida y archivo que no es imagen)
+- [x] Prueba manual con una foto real (Gemini real) y una borrosa
 
 **Hecho cuando:** subo una foto real y veo la factura extraída en Neon; una foto borrosa queda en `unreadable` con su motivo.
 
@@ -339,3 +340,6 @@ Paginación simple: `?page=&limit=`.
 | 2026-11-18 | Limpieza de sobreingeniería: fuera `ws` y `@neon/env` (sin uso), `@neon/config` a devDependencies, `neon.ts` solo con el bucket, vars de Gemini salen del env hasta la Fase 2, se borra el Hello World del scaffold (el e2e ahora prueba `/health`), `package.json` alineado con Bun |
 | 2026-11-18 | Fase 1 completada: tablas `users` y `sessions` migradas a Neon, script `user:create` con scrypt y reseteo de sesiones, autenticación por cookies `__Host-session` con `@nestjs/authentication`, `ProxySecretGuard` global protegiendo todos los endpoints (salvo `/health`), throttler en login por `${email}|${clientIp}`, log seguro de logins fallidos, y suite de tests e2e pasando al 100%. |
 | 2026-11-19 | Revisión de la Fase 1: `PROXY_SECRET` fuera de `api.http` (`{{$dotenv PROXY_SECRET}}`), `normalizeEmail` único en `common/email.ts` (el script no aplicaba NFC), test de `X-Proxy-Secret` sobre `POST /auth/sign-in` (antes pasaba aunque no hubiera guard), los e2e borran su usuario de prueba, `AuthenticationModule.forRoot` sin repetir los defaults de la cookie, `UsersService` con `select` de columnas, `normalizeIp` en el throttler, `z.email()` |
+| 2026-11-19 | Fase 2: tablas migradas (0002) y `purchased_at` pasa a `date` (0003; un `timestamptz` corría la fecha al día anterior en Bogotá). `AiModule` vive en `ReceiptsModule` (no es global), timeout 40 s y 2 intentos para no pasar los 100 s de Cloudflare. Subida a storage y Gemini en paralelo; si algo falla se borran las fotos (502) y el hash queda libre. Guardado en una transacción; CUFE repetido → 409. Las imágenes van como partes `file` (la parte `image` está deprecada en AI SDK 7). Ilegible si la IA lo dice o si no hay ítems (`no_es_factura`) o total (`cortada`). El NIT leído se guarda en la tienda solo si no tiene y no lo usa otra. `matchedProductId` solo se acepta si es del catálogo del usuario; `suggestedProduct` se devuelve por ítem y queda en `ai_raw` (la Fase 3 lo usa para crear productos). Ids de ruta validados como UUID (400). Tests e2e con `FakeModel` + `InMemoryDisk` sobre Neon real, incluidos los de aislamiento entre 2 usuarios. `@types/multer` agregado a `types` del tsconfig |
+| 2026-11-20 | Prueba manual con foto real: Gemini rechazaba el `responseSchema` con *"too many states"* porque `extractionSchema` lleva enteros con min/max (total hasta 100 M), `items.max(200)` y `format: date`. Fix: `geminiExtractionSchema` sin cotas ni formatos para el model call y la salida se valida después con `extractionSchema.parse()` (las cotas de seguridad se conservan). `purchasedAt` tolera otro formato con `.catch(null)`, pero una fecha futura sigue rechazada (502) vía `.refine` posterior |
+| 2026-11-20 | Prueba manual completa con la colección Bruno: factura real → `draft` (total 29.100, 3 ítems), foto ilegible → `unreadable` (`cortada`), duplicado → 409, archivo no imagen → 400, 3 fotos → 400, URLs firmadas y reintento OK. **Fase 2 cerrada** |
