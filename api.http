@@ -72,3 +72,73 @@ Content-Type: image/jpeg
 GET {{host}}/receipts/REEMPLAZAR-RECEIPT-ID/images
 X-Proxy-Secret: {{proxySecret}}
 
+
+### Facturas (filtros opcionales: storeType, storeId, from, to, q, category, page, limit)
+GET {{host}}/receipts?storeType=cadena&from=2026-01-01&page=1&limit=20
+X-Proxy-Secret: {{proxySecret}}
+
+### Ver factura con tienda, fotos e ítems
+GET {{host}}/receipts/REEMPLAZAR-RECEIPT-ID
+X-Proxy-Secret: {{proxySecret}}
+
+### Editar factura (solo fecha y total, en draft)
+PATCH {{host}}/receipts/REEMPLAZAR-RECEIPT-ID
+Content-Type: application/json
+X-Proxy-Secret: {{proxySecret}}
+
+{
+  "purchasedAt": "2026-11-15",
+  "total": 29100
+}
+
+### Corregir y/o confirmar un ítem (productId o product, no ambos)
+PATCH {{host}}/receipts/REEMPLAZAR-RECEIPT-ID/items/REEMPLAZAR-ITEM-ID
+Content-Type: application/json
+X-Proxy-Secret: {{proxySecret}}
+
+{
+  "confirmed": true
+}
+
+### Confirmar factura (422 si falta confirmar algún ítem, producto, fecha o total)
+POST {{host}}/receipts/REEMPLAZAR-RECEIPT-ID/confirm
+X-Proxy-Secret: {{proxySecret}}
+
+### Reabrir factura confirmada (vuelve a draft y desmarca los ítems)
+POST {{host}}/receipts/REEMPLAZAR-RECEIPT-ID/reopen
+X-Proxy-Secret: {{proxySecret}}
+
+### Registrar a mano (solo si quedó unreadable)
+POST {{host}}/receipts/REEMPLAZAR-RECEIPT-ID/manual
+X-Proxy-Secret: {{proxySecret}}
+
+### Agregar ítem a mano (solo entry_mode manual; line_total lo calcula el servidor)
+POST {{host}}/receipts/REEMPLAZAR-RECEIPT-ID/items
+Content-Type: application/json
+X-Proxy-Secret: {{proxySecret}}
+
+{
+  "description": "Carne molida",
+  "quantity": 1.25,
+  "unit": "kg",
+  "unitPrice": 20000,
+  "product": { "name": "Carne molida", "category": "Carnes", "baseUnit": "g", "baseSize": 1 }
+}
+
+### Borrar factura (solo draft o unreadable)
+DELETE {{host}}/receipts/REEMPLAZAR-RECEIPT-ID
+X-Proxy-Secret: {{proxySecret}}
+
+### Productos (q opcional)
+GET {{host}}/products?q=leche
+X-Proxy-Secret: {{proxySecret}}
+
+### Editar producto
+PATCH {{host}}/products/REEMPLAZAR-PRODUCT-ID
+Content-Type: application/json
+X-Proxy-Secret: {{proxySecret}}
+
+{
+  "category": "Lácteos",
+  "baseSize": 1100
+}
