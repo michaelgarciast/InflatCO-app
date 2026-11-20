@@ -10,7 +10,7 @@ import type { Db, Tx } from '../db/types.js';
 import { escapeLike } from '../common/sql.js';
 import type { PatchProductDto } from './products.schemas.js';
 
-const productColumns = {
+export const productColumns = {
   id: products.id,
   name: products.name,
   category: products.category,
