@@ -11,3 +11,5 @@ coverage
 factura.jpg
 # Colección de Bruno: solo local (fotos reales de facturas)
 bruno-api/
+# Config local de Devin (skills, plan, reglas)
+.devin/
