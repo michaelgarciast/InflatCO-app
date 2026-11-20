@@ -6,23 +6,53 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { AiOutputError } from '@nestjs/ai';
 import { InjectDrizzle } from '@nestjs/drizzle';
 import { Storage } from '@nestjs/storage';
-import { and, eq, inArray, ne } from 'drizzle-orm';
-import type { NeonDatabase } from 'drizzle-orm/neon-serverless';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  exists,
+  getTableColumns,
+  gte,
+  ilike,
+  inArray,
+  lte,
+  max,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { detectImageType, hashImage, type ImageType } from '../common/image.js';
-import { receiptImages, receiptItems, receipts } from '../db/schema.js';
-import type * as schema from '../db/schema.js';
+import { escapeLike } from '../common/sql.js';
+import {
+  products,
+  receiptImages,
+  receiptItems,
+  receipts,
+  stores,
+} from '../db/schema.js';
+import type { Db, Tx } from '../db/types.js';
 import { ProductsService } from '../products/products.service.js';
 import { StoresService } from '../stores/stores.service.js';
 import { ExtractionService } from './extraction.service.js';
-import type { CreateReceiptBody, Extraction } from './receipts.schemas.js';
+import type {
+  CreateItemDto,
+  CreateReceiptBody,
+  Extraction,
+  ListReceiptsQuery,
+  PatchItemDto,
+  PatchReceiptDto,
+} from './receipts.schemas.js';
+import { lineTotal, unitPriceBase } from './unit-price.js';
 
-type Db = NeonDatabase<typeof schema>;
-type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type ExtractedItem = Extraction['items'][number];
+type Item = typeof receiptItems.$inferSelect;
 type ReceiptFields = ReturnType<typeof parseExtraction>['fields'];
 
 interface NewImage {
@@ -49,6 +79,11 @@ type ReceiptRow = Pick<
   typeof receipts.$inferSelect,
   keyof typeof receiptColumns
 >;
+
+const storeColumns = { id: stores.id, name: stores.name, type: stores.type };
+
+const ownedReceipt = (userId: string, id: string) =>
+  and(eq(receipts.id, id), eq(receipts.userId, userId));
 
 @Injectable()
 export class ReceiptsService {
@@ -106,12 +141,278 @@ export class ReceiptsService {
         return tx
           .update(receipts)
           .set(fields)
-          .where(and(eq(receipts.id, receiptId), eq(receipts.userId, userId)))
+          .where(ownedReceipt(userId, receiptId))
           .returning(receiptColumns);
       },
     );
     await this.deleteFiles(oldKeys);
     return result;
+  }
+
+  async findAll(userId: string, { page, limit, ...f }: ListReceiptsQuery) {
+    const withItem = (condition: SQL | undefined) =>
+      exists(
+        this.db
+          .select({ id: receiptItems.id })
+          .from(receiptItems)
+          .leftJoin(products, eq(products.id, receiptItems.productId))
+          .where(and(eq(receiptItems.receiptId, receipts.id), condition)),
+      );
+    const q = f.q && `%${escapeLike(f.q)}%`;
+    const where = and(
+      eq(receipts.userId, userId),
+      f.storeType ? eq(stores.type, f.storeType) : undefined,
+      f.storeId ? eq(receipts.storeId, f.storeId) : undefined,
+      f.from ? gte(receipts.purchasedAt, f.from) : undefined,
+      f.to ? lte(receipts.purchasedAt, f.to) : undefined,
+      q
+        ? or(
+            ilike(stores.name, q),
+            withItem(
+              or(
+                ilike(products.name, q),
+                ilike(receiptItems.rawDescription, q),
+              ),
+            ),
+          )
+        : undefined,
+      f.category
+        ? withItem(ilike(products.category, escapeLike(f.category)))
+        : undefined,
+    );
+
+    const [data, [{ count: total }]] = await Promise.all([
+      this.db
+        .select({ ...receiptColumns, store: storeColumns })
+        .from(receipts)
+        .innerJoin(stores, eq(stores.id, receipts.storeId))
+        .where(where)
+        .orderBy(
+          sql`${receipts.purchasedAt} desc nulls last`,
+          desc(receipts.createdAt),
+        )
+        .limit(limit)
+        .offset((page - 1) * limit),
+      this.db
+        .select({ count: count() })
+        .from(receipts)
+        .innerJoin(stores, eq(stores.id, receipts.storeId))
+        .where(where),
+    ]);
+    return { data, page, limit, total };
+  }
+
+  async findOne(userId: string, id: string) {
+    const [row] = await this.db
+      .select({ ...receiptColumns, store: storeColumns })
+      .from(receipts)
+      .innerJoin(stores, eq(stores.id, receipts.storeId))
+      .where(ownedReceipt(userId, id));
+    if (!row) throw new NotFoundException('Factura no encontrada');
+    const { store, ...receipt } = row;
+
+    const [items, images] = await Promise.all([
+      this.db
+        .select({
+          ...getTableColumns(receiptItems),
+          product: {
+            id: products.id,
+            name: products.name,
+            category: products.category,
+            baseUnit: products.baseUnit,
+            baseSize: products.baseSize,
+          },
+        })
+        .from(receiptItems)
+        .leftJoin(products, eq(products.id, receiptItems.productId))
+        .where(eq(receiptItems.receiptId, id))
+        .orderBy(receiptItems.position, receiptItems.id),
+      this.db
+        .select({ id: receiptImages.id, position: receiptImages.position })
+        .from(receiptImages)
+        .where(eq(receiptImages.receiptId, id))
+        .orderBy(receiptImages.position),
+    ]);
+    return { receipt, store, images, items, ...totalWarning(receipt, items) };
+  }
+
+  async update(userId: string, id: string, dto: PatchReceiptDto) {
+    await this.findDraft(userId, id);
+    const [updated] = await this.db
+      .update(receipts)
+      .set(dto)
+      .where(ownedReceipt(userId, id))
+      .returning(receiptColumns);
+    return updated;
+  }
+
+  async updateItem(
+    userId: string,
+    receiptId: string,
+    itemId: string,
+    dto: PatchItemDto,
+  ) {
+    await this.findDraft(userId, receiptId);
+    const [item] = await this.db
+      .select()
+      .from(receiptItems)
+      .where(
+        and(eq(receiptItems.id, itemId), eq(receiptItems.receiptId, receiptId)),
+      );
+    if (!item) throw new NotFoundException('Ítem no encontrado');
+    if (dto.productId) await this.assertProduct(userId, dto.productId);
+
+    const { description, quantity, productId, product, ...fields } = dto;
+    const priceChanged =
+      quantity !== undefined ||
+      dto.unitPrice !== undefined ||
+      dto.discount !== undefined;
+    const [updated] = await this.db
+      .update(receiptItems)
+      .set({
+        ...fields,
+        ...(description !== undefined && { rawDescription: description }),
+        ...(quantity !== undefined && { quantity: String(quantity) }),
+        ...(priceChanged && {
+          lineTotal: checkedLineTotal({
+            quantity: quantity ?? Number(item.quantity),
+            unitPrice: dto.unitPrice ?? item.unitPrice,
+            discount: dto.discount ?? item.discount,
+          }),
+        }),
+        ...(productId && { productId, newProduct: null }),
+        ...(product && { productId: null, newProduct: product }),
+      })
+      .where(eq(receiptItems.id, itemId))
+      .returning();
+    return updated;
+  }
+
+  async startManual(userId: string, id: string) {
+    const receipt = await this.findOwned(userId, id);
+    if (receipt.status !== 'unreadable') {
+      throw new ConflictException(
+        'Solo se puede registrar a mano una factura cuya foto no se pudo leer',
+      );
+    }
+    const [updated] = await this.db
+      .update(receipts)
+      .set({ status: 'draft', entryMode: 'manual' })
+      .where(ownedReceipt(userId, id))
+      .returning(receiptColumns);
+    return updated;
+  }
+
+  async addItem(userId: string, receiptId: string, dto: CreateItemDto) {
+    const receipt = await this.findDraft(userId, receiptId);
+    if (receipt.entryMode !== 'manual') {
+      throw new ConflictException(
+        'Solo se pueden agregar productos a mano si la foto no se pudo leer',
+      );
+    }
+    if (dto.productId) await this.assertProduct(userId, dto.productId);
+
+    const [{ last }] = await this.db
+      .select({ last: max(receiptItems.position) })
+      .from(receiptItems)
+      .where(eq(receiptItems.receiptId, receiptId));
+    const [item] = await this.db
+      .insert(receiptItems)
+      .values({
+        receiptId,
+        position: (last ?? 0) + 1,
+        rawDescription: dto.description,
+        quantity: String(dto.quantity),
+        unit: dto.unit,
+        unitPrice: dto.unitPrice,
+        discount: dto.discount,
+        lineTotal: checkedLineTotal(dto),
+        productId: dto.productId ?? null,
+        newProduct: dto.product ?? null,
+        // Los escribió el usuario: no hay nada que revisar.
+        confirmed: true,
+      })
+      .returning();
+    return item;
+  }
+
+  async confirm(userId: string, id: string) {
+    const receipt = await this.findDraft(userId, id);
+    const items = await this.db
+      .select()
+      .from(receiptItems)
+      .where(eq(receiptItems.receiptId, id));
+    const problem = confirmProblem(receipt, items);
+    if (problem) throw new UnprocessableEntityException(problem);
+
+    await this.db.transaction(async (tx) => {
+      const ids = items.flatMap((item) => item.productId ?? []);
+      const known = new Map(
+        (await this.products.findByIds(tx, userId, ids)).map((p) => [p.id, p]),
+      );
+      for (const item of items) {
+        const product = item.productId
+          ? known.get(item.productId)
+          : item.newProduct &&
+            (await this.products.findOrCreate(tx, userId, item.newProduct));
+        if (!product) {
+          throw new UnprocessableEntityException(
+            `"${item.rawDescription}" no tiene un producto asociado`,
+          );
+        }
+        const base = unitPriceBase(item, product);
+        if (!base) {
+          throw new UnprocessableEntityException(
+            `La unidad de "${item.rawDescription}" (${item.unit}) no es compatible con la del producto (${product.baseUnit})`,
+          );
+        }
+        await tx
+          .update(receiptItems)
+          .set({ productId: product.id, newProduct: null, unitPriceBase: base })
+          .where(eq(receiptItems.id, item.id));
+      }
+      await tx
+        .update(receipts)
+        .set({ status: 'confirmed' })
+        .where(ownedReceipt(userId, id));
+    });
+    return this.findOne(userId, id);
+  }
+
+  async reopen(userId: string, id: string) {
+    const receipt = await this.findOwned(userId, id);
+    if (receipt.status !== 'confirmed') {
+      throw new ConflictException(
+        'Solo se puede reabrir una factura confirmada',
+      );
+    }
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(receipts)
+        .set({ status: 'draft' })
+        .where(ownedReceipt(userId, id));
+      await tx
+        .update(receiptItems)
+        .set({ confirmed: false })
+        .where(eq(receiptItems.receiptId, id));
+    });
+    return this.findOne(userId, id);
+  }
+
+  async remove(userId: string, id: string) {
+    const receipt = await this.findOwned(userId, id);
+    if (receipt.status === 'confirmed') {
+      throw new ConflictException(
+        'Una factura confirmada no se puede borrar: reábrela primero',
+      );
+    }
+    const images = await this.db
+      .select({ key: receiptImages.imageKey })
+      .from(receiptImages)
+      .where(eq(receiptImages.receiptId, id));
+    // Ítems e imágenes se borran en cascada.
+    await this.db.delete(receipts).where(ownedReceipt(userId, id));
+    await this.deleteFiles(images.map((img) => img.key));
   }
 
   async getImages(userId: string, receiptId: string) {
@@ -178,16 +479,43 @@ export class ReceiptsService {
         extraction.nit,
       );
     }
-    return toResponse(saved, items);
+    return toResponse(saved);
   }
 
   private async findOwned(userId: string, receiptId: string) {
     const [receipt] = await this.db
-      .select({ id: receipts.id, status: receipts.status })
+      .select({
+        id: receipts.id,
+        status: receipts.status,
+        entryMode: receipts.entryMode,
+        purchasedAt: receipts.purchasedAt,
+        total: receipts.total,
+      })
       .from(receipts)
-      .where(and(eq(receipts.id, receiptId), eq(receipts.userId, userId)));
+      .where(ownedReceipt(userId, receiptId));
     if (!receipt) throw new NotFoundException('Factura no encontrada');
     return receipt;
+  }
+
+  private async findDraft(userId: string, receiptId: string) {
+    const receipt = await this.findOwned(userId, receiptId);
+    if (receipt.status === 'confirmed') {
+      throw new ConflictException(
+        'La factura ya está confirmada: reábrela para editarla',
+      );
+    }
+    if (receipt.status === 'unreadable') {
+      throw new ConflictException(
+        'La factura es ilegible: toma la foto de nuevo o regístrala a mano',
+      );
+    }
+    return receipt;
+  }
+
+  private async assertProduct(userId: string, productId: string) {
+    if (!(await this.products.exists(userId, productId))) {
+      throw new NotFoundException('Producto no encontrado');
+    }
   }
 
   private readImages(
@@ -396,48 +724,80 @@ async function insertItems(
   return tx
     .insert(receiptItems)
     .values(
-      items.map((item) => ({
-        receiptId,
+      items.map((item, i) => {
         // La IA podría inventar un id o copiar uno que no es del usuario.
-        productId:
+        const productId =
           item.matchedProductId && productIds.has(item.matchedProductId)
             ? item.matchedProductId
-            : null,
-        rawDescription: item.rawDescription,
-        quantity: String(item.quantity),
-        unit: item.unit,
-        unitPrice: item.unitPrice,
-        discount: item.discount,
-        lineTotal: item.lineTotal,
-      })),
+            : null;
+        return {
+          receiptId,
+          position: i + 1,
+          productId,
+          newProduct: productId ? null : item.suggestedProduct,
+          rawDescription: item.rawDescription,
+          quantity: String(item.quantity),
+          unit: item.unit,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+          lineTotal: item.lineTotal,
+        };
+      }),
     )
     .returning();
 }
 
-function toResponse(
-  saved: {
-    receipt: ReceiptRow;
-    images: { id: string; position: number }[];
-    items: (typeof receiptItems.$inferSelect)[];
-  },
-  extracted: ExtractedItem[],
-) {
+function toResponse(saved: {
+  receipt: ReceiptRow;
+  images: { id: string; position: number }[];
+  items: Item[];
+}) {
   if (saved.receipt.status === 'unreadable') {
     return {
       ...saved,
       message: 'No se pudo leer la foto: tómala de nuevo con buena iluminación',
     };
   }
-  const linesTotal = saved.items.reduce((sum, item) => sum + item.lineTotal, 0);
-  return {
-    ...saved,
-    // RETURNING de un INSERT multi-fila devuelve las filas en el orden de VALUES.
-    items: saved.items.map((item, i) => ({
-      ...item,
-      suggestedProduct: extracted[i].suggestedProduct,
-    })),
-    ...(linesTotal !== saved.receipt.total && {
-      warning: 'La suma de las líneas no coincide con el total de la factura',
-    }),
-  };
+  return { ...saved, ...totalWarning(saved.receipt, saved.items) };
+}
+
+function totalWarning(
+  receipt: { total: number | null },
+  items: { lineTotal: number }[],
+) {
+  const linesTotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
+  return items.length && linesTotal !== receipt.total
+    ? {
+        warning: 'La suma de las líneas no coincide con el total de la factura',
+      }
+    : {};
+}
+
+function checkedLineTotal(item: Parameters<typeof lineTotal>[0]) {
+  const total = lineTotal(item);
+  if (total < 0) {
+    throw new BadRequestException(
+      'El descuento no puede ser mayor que el valor de la línea',
+    );
+  }
+  return total;
+}
+
+function confirmProblem(
+  receipt: { purchasedAt: string | null; total: number | null },
+  items: Item[],
+) {
+  if (!receipt.purchasedAt || receipt.total === null) {
+    return 'Falta la fecha o el total de la factura';
+  }
+  if (!items.length) return 'La factura no tiene productos';
+  const pending = items.filter((item) => !item.confirmed).length;
+  if (pending) return `Faltan ${pending} productos por confirmar`;
+  const unmatched = items.filter(
+    (item) => !item.productId && !item.newProduct,
+  ).length;
+  if (unmatched) {
+    return `${unmatched} productos no tienen asociado un producto del catálogo ni uno nuevo`;
+  }
+  return null;
 }

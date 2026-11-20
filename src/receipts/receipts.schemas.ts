@@ -1,6 +1,7 @@
 import * as z from 'zod';
-import { storeTypeSchema } from '../common/schemas.js';
+import { hasSomeField, storeTypeSchema } from '../common/schemas.js';
 import { todayInBogota } from '../common/dates.js';
+import { productFieldsSchema } from '../products/products.schemas.js';
 
 export const createReceiptBodySchema = z.union([
   z.object({ storeId: z.uuid() }),
@@ -16,6 +17,76 @@ export type CreateReceiptBody = z.infer<typeof createReceiptBodySchema>;
 const MAX_LINE_COP = 20_000_000;
 const MAX_TOTAL_COP = 100_000_000;
 const cop = (max: number) => z.number().int().nonnegative().max(max);
+
+const notFuture = (date: string) => date <= todayInBogota();
+const FUTURE_DATE = 'La fecha de la factura no puede ser futura';
+
+export const listReceiptsQuerySchema = z.object({
+  storeType: storeTypeSchema.optional(),
+  storeId: z.uuid().optional(),
+  from: z.iso.date().optional(),
+  to: z.iso.date().optional(),
+  q: z.string().trim().max(100).optional(),
+  category: z.string().trim().max(50).optional(),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export type ListReceiptsQuery = z.infer<typeof listReceiptsQuerySchema>;
+
+// Mass assignment: solo lo editable. Zod descarta status, cufe, aiRaw, id y demás claves.
+export const patchReceiptSchema = z
+  .object({
+    purchasedAt: z.iso.date().refine(notFuture, FUTURE_DATE).optional(),
+    total: z.number().int().positive().max(MAX_TOTAL_COP).optional(),
+  })
+  .refine(hasSomeField, 'Debe enviar al menos un campo para actualizar');
+
+export type PatchReceiptDto = z.infer<typeof patchReceiptSchema>;
+
+const itemFields = {
+  description: z.string().trim().min(1).max(200),
+  // numeric(10,3): se redondea aquí para que line_total salga de la misma cantidad que se guarda.
+  quantity: z
+    .number()
+    .min(0.001)
+    .max(1000)
+    .transform((q) => Math.round(q * 1000) / 1000),
+  unit: z.enum(['kg', 'g', 'l', 'ml', 'und']),
+  unitPrice: cop(MAX_LINE_COP),
+  discount: cop(MAX_LINE_COP),
+  productId: z.uuid(),
+  product: productFieldsSchema,
+};
+
+const notBothProducts = [
+  (data: { productId?: string; product?: object }) =>
+    !(data.productId && data.product),
+  'Envía productId o product, no ambos',
+] as const;
+
+export const createItemSchema = z
+  .object({
+    ...itemFields,
+    discount: itemFields.discount.default(0),
+    productId: itemFields.productId.optional(),
+    product: itemFields.product.optional(),
+  })
+  .refine(...notBothProducts)
+  .refine(
+    (data) => data.productId || data.product,
+    'Envía productId o product',
+  );
+
+export type CreateItemDto = z.infer<typeof createItemSchema>;
+
+export const patchItemSchema = z
+  .object({ ...itemFields, confirmed: z.boolean() })
+  .partial()
+  .refine(...notBothProducts)
+  .refine(hasSomeField, 'Debe enviar al menos un campo para actualizar');
+
+export type PatchItemDto = z.infer<typeof patchItemSchema>;
 
 export const unreadableReasons = [
   'borrosa',
@@ -80,10 +151,7 @@ export const extractionSchema = z.object({
     // Gemini ya no recibe format: date; si devuelve otro formato queda null y el usuario la corrige.
     .catch(null)
     // Una fecha futura es salida manipulada y se rechaza, no se anula.
-    .refine(
-      (date) => !date || date <= todayInBogota(),
-      'La fecha de la factura no puede ser futura',
-    )
+    .refine((date) => !date || notFuture(date), FUTURE_DATE)
     .describe('Fecha de compra, YYYY-MM-DD'),
   total: z
     .number()
@@ -143,6 +211,9 @@ export const geminiExtractionSchema = z.object({
   purchasedAt: z.string().nullable().describe('Fecha de compra, YYYY-MM-DD'),
   total: z.number().nullable().describe('Total en COP'),
   nit: z.string().nullable().describe('NIT de la tienda, o null'),
-  cufe: z.string().nullable().describe('CUFE de la factura electrónica, o null'),
+  cufe: z
+    .string()
+    .nullable()
+    .describe('CUFE de la factura electrónica, o null'),
   items: z.array(geminiItemSchema),
 });

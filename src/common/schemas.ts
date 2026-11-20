@@ -4,3 +4,5 @@ import * as z from 'zod';
 export const idSchema = z.uuid();
 
 export const storeTypeSchema = z.enum(['cadena', 'plaza', 'barrio']);
+
+export const hasSomeField = (data: object) => Object.keys(data).length > 0;
