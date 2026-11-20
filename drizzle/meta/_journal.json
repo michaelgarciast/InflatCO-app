@@ -15,6 +15,20 @@
       "when": 1795035689449,
       "tag": "0001_busy_freak",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795121247175,
+      "tag": "0002_motionless_speed_demon",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795121749651,
+      "tag": "0003_cool_tiger_shark",
+      "breakpoints": true
     }
   ]
 }

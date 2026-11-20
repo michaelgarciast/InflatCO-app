@@ -1,0 +1,1 @@
+ALTER TABLE "receipts" ALTER COLUMN "purchased_at" SET DATA TYPE date;
