@@ -307,6 +307,24 @@ Los precios de los reportes se devuelven como número (4 decimales). El frontend
 - Nunca llaman a Gemini ni al bucket real: `overrideModels(builder, { default: new FakeModel() })` y `.overrideProvider(STORAGE_MODULE_OPTIONS)` con un `InMemoryDisk`.
 - Prueba manual: colección Bruno local (`bruno-api/`, fuera de git porque tiene fotos reales) y `api.http`.
 
+## Despliegue (Render)
+
+Web Service con runtime **Docker**: Render construye la última etapa del `Dockerfile` (`prod`, `bun dist/main.js`, usuario `bun`). Sin build ni start command.
+
+| Ajuste | Valor |
+|---|---|
+| Región | Ohio (misma región que Neon, `aws-us-east-2`) |
+| Instancia | Free (se duerme tras ~15 min; el primer request puede tardar ~1 min) |
+| Health check | `/health` (el único endpoint sin `X-Proxy-Secret`) |
+| Auto-deploy | Pushes a `main` |
+| Variables | Las requeridas de la tabla de arriba; `PROXY_SECRET` propio de producción (`openssl rand -hex 32`). `PORT` la pone Render; `DATABASE_URL_UNPOOLED` y `NEON_*` no hacen falta |
+
+- **Migraciones**: el *pre-deploy command* de Render solo existe en instancias pagas. En Free se aplican desde local con `./run.sh bun run db:migrate` (misma DB de Neon) **antes** de hacer push de una migración nueva.
+- Usuarios: `./run.sh bun run user:create <email>` desde local, contra la misma DB.
+- El `deps` del `Dockerfile` instala con `--ignore-scripts`: sin eso el `prepare` (`husky`, devDependency) falla con 127.
+- Probar la imagen antes de desplegar: `./build.sh` y `docker run --rm -p 10000:10000 -e PORT=10000 --env-file .env backend:latest`; `/health` → 200 y cualquier otra ruta → 401 sin `X-Proxy-Secret`.
+- `bun audit --prod` debe salir limpio antes de cada deploy.
+
 ## Git y CI
 
 - Ramas cortas desde `main` actualizado: `feat/…`, `fix/…`, `chore/…`, `docs/…` (descripción corta, en minúsculas y con guiones).
