@@ -333,14 +333,3 @@ Web Service con runtime **Docker**: Render construye la última etapa del `Docke
 - CI (`.github/workflows/ci.yml`) en PRs y pushes a `main`: `bun install --frozen-lockfile`, lint, `tsc --noEmit`, tests unitarios y build. Los e2e no corren en CI (necesitan Neon); se corren en local antes del PR.
 - Se integra por PR a `main`.
 
-## Estado del proyecto
-
-| Fase | Estado |
-|---|---|
-| 0 — Fundaciones (Neon, Drizzle, storage, config, `/health`) | ✅ |
-| 1 — Autenticación | ✅ |
-| 2 — Subir y extraer con Gemini | ✅ |
-| 3 — Revisar y confirmar | ✅ |
-| 4 — Comparación y reportes | ✅ |
-| 5 — Despliegue en Render | Pendiente |
-| 6 — Frontend SvelteKit en Cloudflare | Pendiente |
