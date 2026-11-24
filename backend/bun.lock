@@ -13,6 +13,7 @@
         "@nestjs/config": "^12.1.1",
         "@nestjs/core": "^12.0.1",
         "@nestjs/drizzle": "^0.0.2",
+        "@nestjs/mail": "^0.0.2",
         "@nestjs/platform-express": "^12.0.1",
         "@nestjs/storage": "^0.0.5",
         "@nestjs/throttler": "^6.7.1",
@@ -34,7 +35,6 @@
         "@types/supertest": "^7.0.0",
         "@vitest/coverage-v8": "^4.1.2",
         "drizzle-kit": "^0.31.11",
-        "husky": "^9.1.7",
         "oxlint": "^1.58.0",
         "oxlint-tsgolint": "^7.0.2001",
         "prettier": "^3.4.2",
@@ -242,6 +242,8 @@
     "@nestjs/core": ["@nestjs/core@12.5.0", "", { "dependencies": { "fast-safe-stringify": "2.1.1", "iterare": "1.2.1", "path-to-regexp": "8.4.2", "tslib": "2.9.1", "uid": "2.0.2" }, "peerDependencies": { "@nestjs/common": "^12.0.0", "@nestjs/microservices": "^12.0.0", "@nestjs/platform-express": "^12.0.0", "@nestjs/websockets": "^12.0.0", "reflect-metadata": "^0.1.12 || ^0.2.0", "rxjs": "^7.1.0" }, "optionalPeers": ["@nestjs/microservices", "@nestjs/platform-express", "@nestjs/websockets"] }, "sha512-o6auZGZNwIhc0NT7YDxK3j9EKt3k651moerLD5NSsU0EY2fqTRO8PBBJXIprVHVLnzYNWwFfgsUUzDFSPo0vAg=="],
 
     "@nestjs/drizzle": ["@nestjs/drizzle@0.0.2", "", { "peerDependencies": { "@nestjs/common": "^11.0.0 || ^12.0.0", "@nestjs/core": "^11.0.0 || ^12.0.0", "drizzle-orm": ">=0.35.0 || >=1.0.0-0", "reflect-metadata": "^0.1.13 || ^0.2.0" } }, "sha512-9jBMBcqxPLV7BNuqoOQ/6boSH7z1cA6psKKiArHgJgDefBqniQExYjVNhE/GrqJd3vBEwCXkWXwpEvCi8qRIZg=="],
+
+    "@nestjs/mail": ["@nestjs/mail@0.0.2", "", { "peerDependencies": { "@nestjs/common": "^11.0.0 || ^12.0.0", "@nestjs/core": "^11.0.0 || ^12.0.0", "reflect-metadata": "^0.1.13 || ^0.2.0", "rxjs": "^7.1.0" } }, "sha512-LBCq2tysXk+nge9UpqOes0b3xahfv0DegV8s+z256w4zUTu7o5fvdlY0QuhdBZ7HindFfdyJti0xByVBFslqgg=="],
 
     "@nestjs/platform-express": ["@nestjs/platform-express@12.5.0", "", { "dependencies": { "cors": "2.8.6", "express": "5.3.0", "multer": "2.5.0", "path-to-regexp": "8.4.2", "tslib": "2.9.1" }, "peerDependencies": { "@nestjs/common": "^12.0.0", "@nestjs/core": "^12.0.0", "rxjs": "^7.1.0" } }, "sha512-wTPC2Eixk5Y0acgZuepl55pwoVwaJvMQhLm0AoerkRnZlYBox27/XDpGEiNZJRWPOUxSEqWEWuGWrFym1V0MZw=="],
 
@@ -630,8 +632,6 @@
     "html-escaper": ["html-escaper@2.0.2", "", {}, "sha512-H2iMtd0I4Mt5eYiapRdIDjp+XzelXQ0tFE4JS7YFwFevXXMmOp9myNrUvCg0D6ws8iqkRPBfKHgbwig1SmlLfg=="],
 
     "http-errors": ["http-errors@2.0.1", "", { "dependencies": { "depd": "~2.0.0", "inherits": "~2.0.4", "setprototypeof": "~1.2.0", "statuses": "~2.0.2", "toidentifier": "~1.0.1" } }, "sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ=="],
-
-    "husky": ["husky@9.1.7", "", { "bin": { "husky": "bin.js" } }, "sha512-5gs5ytaNjBrh5Ow3zrvdUUY+0VxIuWVL4i9irt6friV+BqdCfmV11CQTWMiBYWHbXhco+J1kHfTOUkePhCDvMA=="],
 
     "iconv-lite": ["iconv-lite@0.7.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ=="],
 
