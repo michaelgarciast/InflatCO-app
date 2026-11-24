@@ -1,0 +1,14 @@
+**/node_modules
+**/.svelte-kit
+**/.wrangler
+**/dist
+**/coverage
+**/test
+**/tests
+.git
+.DS_Store
+*.log
+.vscode
+.idea
+.env*
+!.env.example
