@@ -101,7 +101,7 @@ En el host **no hay Bun, Node ni npm instalados**: todo corre en Docker.
 Las dependencias viven en el volumen Docker `backend_node_modules`, así que el `node_modules` del host está vacío. Para que el IDE encuentre los tipos (solo IDE):
 
 ```bash
-docker run --rm -v backend_node_modules:/from -v "$PWD/node_modules":/to alpine cp -a /from/. /to/
+docker run --rm -v backend_node_modules:/from -v "$PWD/node_modules":/to backend-dev cp -a /from/. /to/
 ```
 
 ## Variables de entorno

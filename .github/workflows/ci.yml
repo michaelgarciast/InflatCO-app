@@ -7,8 +7,11 @@ on:
     branches: [main]
 
 jobs:
-  checks:
+  backend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -19,3 +22,22 @@ jobs:
       - run: bunx tsc --noEmit
       - run: bun run test
       - run: bun run build
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun run test
+      - run: bun run build
+        env:
+          # Valores dummy: vite build valida env.ts pero no las usa en runtime
+          API_URL: http://localhost:3000
+          PROXY_SECRET: ci-placeholder-secret-minimo-32-chars
