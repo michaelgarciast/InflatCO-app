@@ -10,8 +10,11 @@ const envSchema = z.object({
   S3_BUCKET: z.string().min(1),
   PROXY_SECRET: z.string().min(32),
   GOOGLE_GENERATIVE_AI_API_KEY: z.string().min(1),
-  // Sin SIGNUP_CODE el registro queda deshabilitado.
-  SIGNUP_CODE: z.string().min(16).optional(),
+  // Sin RESEND_API_KEY los correos se loguean en vez de enviarse (desarrollo).
+  RESEND_API_KEY: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().default('InflatCO <onboarding@resend.dev>'),
+  // Base del frontend para el link de recuperación de contraseña.
+  FRONTEND_URL: z.url().default('http://localhost:5173'),
   AI_MODEL: z.string().default('gemini-3.5-flash-lite'),
 });
 

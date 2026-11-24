@@ -38,6 +38,7 @@ API REST para el seguimiento de precios de compras de mercado en Colombia. A par
 | Archivos | Neon Object Storage (S3) con `@nestjs/storage` (`S3Disk`, `forcePathStyle: true`), bucket privado |
 | IA | `@nestjs/ai` + `@ai-sdk/google`, modelo `gemini-3.5-flash-lite` |
 | Auth | `@nestjs/authentication`: email + contraseña, sesión en Postgres y cookie `__Host-session` |
+| Email | `@nestjs/mail` con `ResendTransport` en producción y `LogMailTransport` en desarrollo |
 | Validación | Zod 4 con `StandardSchemaValidationPipe` (`@Body({ schema })`, `@Query({ schema })`) |
 | Rate limit | `@nestjs/throttler`, solo en el login |
 | Config | `@nestjs/config` + validación Zod del `.env` |
@@ -72,7 +73,8 @@ src/
   db/                     schema.ts (tablas Drizzle), db.module.ts, types.ts (Db, Tx)
   common/                 proxy-secret.guard, image (magic bytes, hash), dates, email, sql (escapeLike), schemas
   health.controller.ts    GET /health (select 1)
-  auth/                   sign-in / sign-out / me, sesiones en Postgres, throttler del login
+  auth/                   sign-in / sign-out / me, recuperación de contraseña por correo,
+                          sesiones en Postgres, throttler del login
   users/                  UsersService
   stores/                 tiendas del usuario
   products/               catálogo del usuario
@@ -118,7 +120,9 @@ Se validan con Zod al arrancar (`src/config/env.ts`).
 | `S3_BUCKET` | sí | Nombre del bucket (`receipts`) |
 | `PROXY_SECRET` | sí, ≥ 32 caracteres | Secreto compartido con el proxy de SvelteKit |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | sí | API key de Google AI Studio (restringida a *Generative Language API*, sin billing) |
-| `SIGNUP_CODE` | no, ≥ 16 caracteres | Código de invitación de `POST /auth/sign-up`; sin él el registro queda deshabilitado |
+| `RESEND_API_KEY` | no | API key de Resend para el correo de recuperación; sin ella el correo se loguea (desarrollo) |
+| `EMAIL_FROM` | no | Remitente verificado en Resend, por defecto `InflatCO <onboarding@resend.dev>` |
+| `FRONTEND_URL` | no | Base del link de recuperación, por defecto `http://localhost:5173` |
 | `AI_MODEL` | no | Modelo de Gemini, por defecto `gemini-3.5-flash-lite` |
 | `PORT` | no | Puerto HTTP, por defecto `3000` |
 | `NEON_*` | no | Las escribe `neon env pull`; la app no las usa |
@@ -147,12 +151,13 @@ Después de cambiar dependencias: `docker build --target dev -t backend-dev .` (
 
 ## Base de datos
 
-Postgres en Neon, esquema en `src/db/schema.ts`, migraciones en `drizzle/` (`0000`–`0004`).
+Postgres en Neon, esquema en `src/db/schema.ts`, migraciones en `drizzle/` (`0000`–`0005`).
 
 | Tabla | Columnas clave | Notas |
 |---|---|---|
 | `users` | `email` único, `password_hash` | Sin roles todavía |
 | `sessions` | `user_id`, `expires_at`, `last_active_at` | Store de `@nestjs/authentication` |
+| `password_reset_tokens` | `user_id`, `token_hash` único, `expires_at`, `used_at` | Solo el SHA-256 del token; un link activo por usuario |
 | `stores` | `user_id`, `name`, `type` (`cadena`/`plaza`/`barrio`), `nit` | `UNIQUE(user_id, nit)`; el tipo de tienda vive aquí y lo heredan sus facturas |
 | `products` | `user_id`, `name`, `category`, `base_unit` (`g`/`ml`/`und`), `base_size` | `UNIQUE(user_id, name)`; catálogo propio de cada usuario |
 | `receipts` | `user_id`, `store_id`, `purchased_at` (date), `total`, `cufe`, `status`, `entry_mode`, `unreadable_reason`, `ai_raw` | `UNIQUE(user_id, cufe)`, índice `(user_id, purchased_at)` |
@@ -173,8 +178,9 @@ Flujo para cambiar el esquema: editar `src/db/schema.ts` → `db:generate` → r
 ## Autenticación y seguridad
 
 - **Guard global `ProxySecretGuard`**: toda petición sin `X-Proxy-Secret` válido → 401 (comparación en tiempo constante). Solo `/health` queda libre.
-- **Sesión**: `POST /auth/sign-in` crea una sesión en Postgres y emite la cookie `__Host-session` (`httpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, 30 días). Todo requiere sesión salvo `sign-in`, `sign-up` y `health` (`@Public()`).
-- **Throttler del login**: 5 intentos por minuto por `email|IP`. La IP sale de `X-Client-IP`, en la que solo se confía porque el `ProxySecretGuard` corre antes.
+- **Sesión**: `POST /auth/sign-in` crea una sesión en Postgres y emite la cookie `__Host-session` (`httpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, 30 días). Todo requiere sesión salvo `sign-in`, `sign-up`, `forgot-password`, `reset-password` y `health` (`@Public()`).
+- **Throttler del login**: 5 intentos por minuto por `email|IP`, también en `forgot-password` y `reset-password`. La IP sale de `X-Client-IP`, en la que solo se confía porque el `ProxySecretGuard` corre antes.
+- **Recuperación de contraseña**: `POST /auth/forgot-password` siempre responde 200 (no revela si el correo existe) y envía un link `{FRONTEND_URL}/recuperar?token=…`. El token se guarda como SHA-256, vence en 1 hora, es de un solo uso y al usarse cierra todas las sesiones del usuario. Sin `RESEND_API_KEY` el correo sale en los logs.
 - Errores de login genéricos ("credenciales inválidas"); se loguean los fallos sin datos sensibles.
 - **Aislamiento**: toda consulta filtra por `user_id`, también ítems e imágenes (a través de su factura). Hay tests e2e de aislamiento entre 2 usuarios por endpoint.
 - **Mass assignment**: los schemas de `PATCH` listan solo los campos editables; `status`, `cufe`, `ai_raw`, `id` y demás se descartan.
@@ -194,8 +200,10 @@ Todas las rutas requieren `X-Proxy-Secret` y, salvo las marcadas, la cookie de s
 |---|---|
 | `GET /health` | Sin secreto ni sesión. `select 1` contra Neon |
 | `POST /auth/sign-in` | Sin sesión. Body `{ email, password }` → 200 + cookie; 401 si no coincide; 429 al 6.º intento por minuto |
-| `POST /auth/sign-up` | Sin sesión. Body `{ email, password (≥ 12), code }` → 201 + cookie; 403 si el código no coincide o no hay `SIGNUP_CODE`; 409 si el correo ya existe; mismo throttler que el login |
+| `POST /auth/sign-up` | Sin sesión. Body `{ email, password (≥ 12) }` → 201 + cookie; 409 si el correo ya existe; mismo throttler que el login |
 | `POST /auth/sign-out` | Borra la sesión → 204 |
+| `POST /auth/forgot-password` | Sin sesión. Body `{ email }` → 200 siempre (no revela si existe); envía el link de recuperación por correo; mismo throttler que el login |
+| `POST /auth/reset-password` | Sin sesión. Body `{ token, password (≥ 12) }` → 200; 400 si el token es inválido, expiró (1 h) o ya se usó. Cierra todas las sesiones |
 | `GET /me` | Usuario de la sesión |
 
 ### Tiendas y productos
@@ -301,6 +309,7 @@ Los precios de los reportes se devuelven como número (4 decimales). El frontend
 | `src/insights/price-change.spec.ts` | Umbral de ±2 % y casos borde |
 | `test/app.e2e-spec.ts` | `/health` |
 | `test/auth.e2e-spec.ts` | Login, cookie, sign-out, `X-Proxy-Secret`, throttler |
+| `test/password-reset.e2e-spec.ts` | Recuperación: correo (`InMemoryMailTransport`), token de un solo uso, expiración, sesiones cerradas |
 | `test/receipts.e2e-spec.ts` | Subida, extracción, ilegible, reintento, duplicados, 502, URLs firmadas, aislamiento |
 | `test/review.e2e-spec.ts` | Revisión, confirmación, registro manual, reopen, filtros, borrado, productos, aislamiento |
 | `test/insights.e2e-spec.ts` | Comparación, historial, más barato, gasto, filtros, aislamiento |

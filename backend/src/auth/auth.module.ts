@@ -7,6 +7,7 @@ import { AuthService } from './auth.service.js';
 import { SessionAuth } from './session-auth.provider.js';
 import { DrizzleSessionStore } from './drizzle-session.store.js';
 import { SignInThrottlerGuard } from './sign-in-throttler.guard.js';
+import { PasswordResetMail } from './password-reset.mail.js';
 
 @Module({
   imports: [UsersModule],
@@ -14,6 +15,7 @@ import { SignInThrottlerGuard } from './sign-in-throttler.guard.js';
   providers: [
     AuthService,
     PasswordHasher,
+    PasswordResetMail,
     SessionAuth,
     DrizzleSessionStore,
     SignInThrottlerGuard,

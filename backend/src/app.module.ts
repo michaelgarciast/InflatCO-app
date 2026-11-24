@@ -8,6 +8,7 @@ import {
   StorageModule,
   type StorageModuleOptions,
 } from '@nestjs/storage';
+import { LogMailTransport, MailModule, ResendTransport } from '@nestjs/mail';
 import { validateEnv } from './config/env.js';
 import { DbModule } from './db/db.module.js';
 import { HealthController } from './health.controller.js';
@@ -33,6 +34,19 @@ import { ProxySecretGuard } from './common/proxy-secret.guard.js';
         limit: 5,
       },
     ]),
+    MailModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const apiKey = config.get<string>('RESEND_API_KEY');
+        return {
+          // Sin API key (desarrollo) el correo —link incluido— sale en los logs.
+          transport: apiKey
+            ? new ResendTransport({ apiKey })
+            : new LogMailTransport({ body: true }),
+          from: config.getOrThrow<string>('EMAIL_FROM'),
+        };
+      },
+    }),
     UsersModule,
     AuthModule,
     StoresModule,
