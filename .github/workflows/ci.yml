@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: frontend
+        working-directory: frontend/app
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -37,3 +37,7 @@ jobs:
       - run: bun run check
       - run: bun run test
       - run: bun run build
+        env:
+          # Valores dummy: vite build valida env.ts pero no las usa en runtime
+          API_URL: http://localhost:3000
+          PROXY_SECRET: ci-placeholder-secret-minimo-32-chars

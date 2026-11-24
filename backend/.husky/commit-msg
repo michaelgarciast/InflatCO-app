@@ -1,2 +1,2 @@
 cd backend
-./run.sh bunx commitlint --edit "$1"
+docker run --rm -i -v "$PWD":/app -v backend_node_modules:/app/node_modules backend-dev bunx commitlint < "../$1"
