@@ -118,6 +118,7 @@ Se validan con Zod al arrancar (`src/config/env.ts`).
 | `S3_BUCKET` | sí | Nombre del bucket (`receipts`) |
 | `PROXY_SECRET` | sí, ≥ 32 caracteres | Secreto compartido con el proxy de SvelteKit |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | sí | API key de Google AI Studio (restringida a *Generative Language API*, sin billing) |
+| `SIGNUP_CODE` | no, ≥ 16 caracteres | Código de invitación de `POST /auth/sign-up`; sin él el registro queda deshabilitado |
 | `AI_MODEL` | no | Modelo de Gemini, por defecto `gemini-3.5-flash-lite` |
 | `PORT` | no | Puerto HTTP, por defecto `3000` |
 | `NEON_*` | no | Las escribe `neon env pull`; la app no las usa |
@@ -172,7 +173,7 @@ Flujo para cambiar el esquema: editar `src/db/schema.ts` → `db:generate` → r
 ## Autenticación y seguridad
 
 - **Guard global `ProxySecretGuard`**: toda petición sin `X-Proxy-Secret` válido → 401 (comparación en tiempo constante). Solo `/health` queda libre.
-- **Sesión**: `POST /auth/sign-in` crea una sesión en Postgres y emite la cookie `__Host-session` (`httpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, 30 días). Todo requiere sesión salvo `sign-in` y `health` (`@Public()`).
+- **Sesión**: `POST /auth/sign-in` crea una sesión en Postgres y emite la cookie `__Host-session` (`httpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, 30 días). Todo requiere sesión salvo `sign-in`, `sign-up` y `health` (`@Public()`).
 - **Throttler del login**: 5 intentos por minuto por `email|IP`. La IP sale de `X-Client-IP`, en la que solo se confía porque el `ProxySecretGuard` corre antes.
 - Errores de login genéricos ("credenciales inválidas"); se loguean los fallos sin datos sensibles.
 - **Aislamiento**: toda consulta filtra por `user_id`, también ítems e imágenes (a través de su factura). Hay tests e2e de aislamiento entre 2 usuarios por endpoint.
@@ -193,6 +194,7 @@ Todas las rutas requieren `X-Proxy-Secret` y, salvo las marcadas, la cookie de s
 |---|---|
 | `GET /health` | Sin secreto ni sesión. `select 1` contra Neon |
 | `POST /auth/sign-in` | Sin sesión. Body `{ email, password }` → 200 + cookie; 401 si no coincide; 429 al 6.º intento por minuto |
+| `POST /auth/sign-up` | Sin sesión. Body `{ email, password (≥ 12), code }` → 201 + cookie; 403 si el código no coincide o no hay `SIGNUP_CODE`; 409 si el correo ya existe; mismo throttler que el login |
 | `POST /auth/sign-out` | Borra la sesión → 204 |
 | `GET /me` | Usuario de la sesión |
 

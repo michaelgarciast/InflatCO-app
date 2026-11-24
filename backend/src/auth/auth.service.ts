@@ -1,8 +1,18 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { PasswordHasher, SignInService } from '@nestjs/authentication';
 import { UsersService } from '../users/users.service.js';
 import { normalizeEmail } from '../common/email.js';
-import type { SignInDto } from './auth.schemas.js';
+import type { SignInDto, SignUpDto } from './auth.schemas.js';
+
+const sha256 = (value: string) => createHash('sha256').update(value).digest();
 
 @Injectable()
 export class AuthService {
@@ -12,6 +22,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly passwordHasher: PasswordHasher,
     private readonly signInService: SignInService,
+    private readonly config: ConfigService,
   ) {}
 
   async signIn(dto: SignInDto) {
@@ -24,6 +35,23 @@ export class AuthService {
     }
 
     await this.signInService.signIn(credentials.id, { method: 'password' });
+    return { ok: true };
+  }
+
+  async signUp(dto: SignUpDto) {
+    const expected = this.config.get<string>('SIGNUP_CODE');
+    // Se comparan hashes para que timingSafeEqual reciba buffers del mismo largo.
+    if (!expected || !timingSafeEqual(sha256(dto.code), sha256(expected))) {
+      throw new ForbiddenException('Código de invitación inválido');
+    }
+
+    const user = await this.usersService.create(
+      dto.email,
+      await this.passwordHasher.hash(dto.password),
+    );
+    if (!user) throw new ConflictException('Ya existe una cuenta con ese correo');
+
+    await this.signInService.signIn(user.id, { method: 'password' });
     return { ok: true };
   }
 

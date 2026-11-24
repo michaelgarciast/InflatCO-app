@@ -24,6 +24,19 @@ export class UsersService {
     return user ?? null;
   }
 
+  async create(email: string, passwordHash: string): Promise<User | null> {
+    const [user] = await this.db
+      .insert(users)
+      .values({ email: normalizeEmail(email), passwordHash })
+      .onConflictDoNothing({ target: users.email })
+      .returning({
+        id: users.id,
+        email: users.email,
+        createdAt: users.createdAt,
+      });
+    return user ?? null;
+  }
+
   async findCredentials(email: string) {
     const [row] = await this.db
       .select({ id: users.id, passwordHash: users.passwordHash })
