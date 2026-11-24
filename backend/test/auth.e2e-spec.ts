@@ -11,10 +11,6 @@ import { AppModule } from '../src/app.module.js';
 import { users } from '../src/db/schema.js';
 import type * as schema from '../src/db/schema.js';
 
-// El registro necesita SIGNUP_CODE; process.env tiene prioridad sobre el .env.
-process.env.SIGNUP_CODE ??= 'e2e-signup-code-123456';
-const signupCode = process.env.SIGNUP_CODE;
-
 describe('Auth (e2e)', () => {
   let app: INestApplication<App>;
   let proxySecret: string;
@@ -37,9 +33,15 @@ describe('Auth (e2e)', () => {
     const hasher = new PasswordHasher();
     const passwordHash = await hasher.hash(testPassword);
 
-    const [existing] = await db.select().from(users).where(eq(users.email, testEmail));
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, testEmail));
     if (existing) {
-      await db.update(users).set({ passwordHash }).where(eq(users.id, existing.id));
+      await db
+        .update(users)
+        .set({ passwordHash })
+        .where(eq(users.id, existing.id));
     } else {
       await db.insert(users).values({ email: testEmail, passwordHash });
     }
@@ -162,23 +164,16 @@ describe('Auth (e2e)', () => {
       .set('x-client-ip', ip)
       .send(body);
 
-  it('sign-up con código inválido -> 403', async () => {
-    await signUp(
-      { email: signupEmail, password: testPassword, code: 'wrong' },
-      '198.51.100.10',
-    ).expect(403);
-  });
-
   it('sign-up con contraseña corta -> 400', async () => {
     await signUp(
-      { email: signupEmail, password: 'short', code: signupCode },
+      { email: signupEmail, password: 'short' },
       '198.51.100.11',
     ).expect(400);
   });
 
   it('sign-up OK -> 201, cookie y /me', async () => {
     const res = await signUp(
-      { email: signupEmail, password: testPassword, code: signupCode },
+      { email: signupEmail, password: testPassword },
       '198.51.100.12',
     ).expect(201);
 
@@ -199,7 +194,6 @@ describe('Auth (e2e)', () => {
       {
         email: signupEmail.toUpperCase(),
         password: testPassword,
-        code: signupCode,
       },
       '198.51.100.13',
     ).expect(409);
