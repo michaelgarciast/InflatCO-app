@@ -1,0 +1,13 @@
+#!/bin/sh
+# Lint + tipos solo del lado con cambios staged. Todo corre en Docker
+# (no hay toolchain en el host). Las carpetas de raiz no corren checks.
+set -e
+changed=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if echo "$changed" | grep -q '^backend/'; then
+  (cd backend && ./run.sh sh -c "bun run lint && bunx tsc --noEmit")
+fi
+
+if echo "$changed" | grep -q '^frontend/'; then
+  (cd frontend && ./run.sh sh -c "bun run lint && bun run check")
+fi

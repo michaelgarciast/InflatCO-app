@@ -1,0 +1,8 @@
+#!/bin/sh
+# commitlint vive en backend/package.json; corre dentro del contenedor
+# (el host no tiene bun/node).
+docker run --rm -i \
+  -e HOME=/tmp \
+  -v "$PWD/backend":/app \
+  -v backend_node_modules:/app/node_modules \
+  backend-dev bunx commitlint < "$1"

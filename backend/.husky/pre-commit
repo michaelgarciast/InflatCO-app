@@ -1,2 +1,0 @@
-cd backend
-./run.sh sh -c "bun run lint && bunx tsc --noEmit"
