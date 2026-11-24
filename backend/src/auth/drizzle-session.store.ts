@@ -28,7 +28,10 @@ export class DrizzleSessionStore implements SessionStore {
   }
 
   async getSession(id: string): Promise<SessionRecord | undefined> {
-    const [row] = await this.db.select().from(sessions).where(eq(sessions.id, id));
+    const [row] = await this.db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.id, id));
     if (!row) {
       return undefined;
     }
@@ -45,7 +48,9 @@ export class DrizzleSessionStore implements SessionStore {
       mfa: record.mfa,
       metadata: record.metadata,
     });
-    await this.db.delete(sessions).where(lte(sessions.expiresAt, record.createdAt));
+    await this.db
+      .delete(sessions)
+      .where(lte(sessions.expiresAt, record.createdAt));
   }
 
   async touchSession(id: string, lastActiveAt: Date): Promise<void> {
@@ -64,7 +69,10 @@ export class DrizzleSessionStore implements SessionStore {
   }
 
   async listUserSessions(userId: string): Promise<SessionRecord[]> {
-    const rows = await this.db.select().from(sessions).where(eq(sessions.userId, userId));
+    const rows = await this.db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.userId, userId));
     return rows.map((r) => withoutNulls(r) as unknown as SessionRecord);
   }
 

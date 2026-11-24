@@ -9,7 +9,10 @@ export class SignInThrottlerGuard extends ThrottlerGuard {
   protected override async getTracker(req: Request): Promise<string> {
     const email: unknown = (req.body as { email?: unknown } | undefined)?.email;
     const clientIp = req.headers['x-client-ip'];
-    const ip = typeof clientIp === 'string' && clientIp.trim() ? clientIp.trim() : (req.ip ?? '');
+    const ip =
+      typeof clientIp === 'string' && clientIp.trim()
+        ? clientIp.trim()
+        : (req.ip ?? '');
     return `${typeof email === 'string' ? normalizeEmail(email) : ''}|${normalizeIp(ip)}`;
   }
 }

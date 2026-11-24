@@ -2,8 +2,12 @@ import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { Public } from '@nestjs/authentication';
 import { AuthService } from './auth.service.js';
 import {
+  forgotPasswordSchema,
+  resetPasswordSchema,
   signInSchema,
   signUpSchema,
+  type ForgotPasswordDto,
+  type ResetPasswordDto,
   type SignInDto,
   type SignUpDto,
 } from './auth.schemas.js';
@@ -32,5 +36,25 @@ export class AuthController {
   @HttpCode(204)
   async signOut() {
     await this.authService.signOut();
+  }
+
+  @Public()
+  @UseGuards(SignInThrottlerGuard)
+  @Post('forgot-password')
+  @HttpCode(200)
+  async forgotPassword(
+    @Body({ schema: forgotPasswordSchema }) body: ForgotPasswordDto,
+  ) {
+    return this.authService.forgotPassword(body);
+  }
+
+  @Public()
+  @UseGuards(SignInThrottlerGuard)
+  @Post('reset-password')
+  @HttpCode(200)
+  async resetPassword(
+    @Body({ schema: resetPasswordSchema }) body: ResetPasswordDto,
+  ) {
+    return this.authService.resetPassword(body);
   }
 }
