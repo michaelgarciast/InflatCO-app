@@ -60,7 +60,7 @@ When a task depends on how the app behaves in production - an error users hit, a
 ### Environment
 
 - Nothing is installed on the host (no Bun, Node or npm): everything runs in Docker. `./dev.sh` for the dev server, `./run.sh <cmd>` for anything else (`./run.sh bun add x`, `./run.sh bunx neon ...`). Package manager and runtime: **Bun**.
-- After changing dependencies, rebuild with `docker build --target dev -t backend-dev .`. Dependencies live in the `backend_node_modules` Docker volume, so the host `node_modules` is empty and the IDE can't find types; copy them over (IDE only) with `docker run --rm -v backend_node_modules:/from -v "$PWD/node_modules":/to alpine cp -a /from/. /to/`, again after each dependency change.
+- After changing dependencies, rebuild with `docker build --target dev -t backend-dev .`. Dependencies live in the `backend_node_modules` Docker volume, so the host `node_modules` is empty and the IDE can't find types; copy them over (IDE only) with `docker run --rm -v backend_node_modules:/from -v "$PWD/node_modules":/to backend-dev cp -a /from/. /to/`, again after each dependency change.
 - `bunfig.toml` has `minimumReleaseAge = 604800` (7 days). Don't change it to get around an install failure.
 - `tsconfig.json` targets ES2023 (no `Map.groupBy`) and restricts global types (`"types": [...]`): a new `@types/*` package that adds globals (like `multer` for `Express.Multer`) must be added there.
 - Env vars are validated in `src/config/env.ts`; a new variable goes there, in `.env.example` and in the README table.

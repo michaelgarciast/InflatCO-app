@@ -1,1 +1,2 @@
+cd backend
 ./run.sh bunx commitlint --edit "$1"
