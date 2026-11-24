@@ -10,6 +10,8 @@ const envSchema = z.object({
   S3_BUCKET: z.string().min(1),
   PROXY_SECRET: z.string().min(32),
   GOOGLE_GENERATIVE_AI_API_KEY: z.string().min(1),
+  // SMTP (p. ej. Gmail) tiene prioridad sobre Resend.
+  SMTP_URL: z.string().min(1).optional(),
   // Sin RESEND_API_KEY los correos se loguean en vez de enviarse (desarrollo).
   RESEND_API_KEY: z.string().min(1).optional(),
   EMAIL_FROM: z.string().default('InflatCO <onboarding@resend.dev>'),

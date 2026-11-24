@@ -120,6 +120,7 @@ Se validan con Zod al arrancar (`src/config/env.ts`).
 | `S3_BUCKET` | sí | Nombre del bucket (`receipts`) |
 | `PROXY_SECRET` | sí, ≥ 32 caracteres | Secreto compartido con el proxy de SvelteKit |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | sí | API key de Google AI Studio (restringida a *Generative Language API*, sin billing) |
+| `SMTP_URL` | no | URL SMTP (p. ej. Gmail con clave de aplicación); tiene prioridad sobre Resend |
 | `RESEND_API_KEY` | no | API key de Resend para el correo de recuperación; sin ella el correo se loguea (desarrollo) |
 | `EMAIL_FROM` | no | Remitente verificado en Resend, por defecto `InflatCO <onboarding@resend.dev>` |
 | `FRONTEND_URL` | no | Base del link de recuperación, por defecto `http://localhost:5173` |

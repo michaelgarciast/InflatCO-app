@@ -6,16 +6,17 @@ import type { LayoutLoad } from './$types';
 export const ssr = false;
 
 export const load: LayoutLoad = async ({ fetch, url }) => {
+	const guest = () => {
+		if (['/login', '/registro', '/recuperar'].includes(url.pathname)) return { user: null };
+		const to = url.pathname + url.search;
+		redirect(307, to === '/' ? '/login' : `/login?redirectTo=${encodeURIComponent(to)}`);
+	};
 	try {
 		const user = await api<User>('/me', undefined, fetch);
 		return { user };
 	} catch (e) {
 		if (!(e instanceof ApiError)) throw e;
-		if (e.status === 401) {
-			if (['/login', '/registro'].includes(url.pathname)) return { user: null };
-			const to = url.pathname + url.search;
-			redirect(307, to === '/' ? '/login' : `/login?redirectTo=${encodeURIComponent(to)}`);
-		}
+		if (e.status === 401) return guest();
 		error(e.status || 502, e.message);
 	}
 };
