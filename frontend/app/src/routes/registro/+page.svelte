@@ -5,13 +5,17 @@
 
 	let email = $state('');
 	let password = $state('');
-	let code = $state('');
+	let password2 = $state('');
 	let error = $state('');
 	let loading = $state(false);
 	let slow = $state(false);
 
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
+		if (password !== password2) {
+			error = 'Las contraseñas no coinciden';
+			return;
+		}
 		loading = true;
 		error = '';
 		const timer = setTimeout(() => (slow = true), 5000);
@@ -19,7 +23,7 @@
 			await api('/auth/sign-up', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email, password, code })
+				body: JSON.stringify({ email, password })
 			});
 			await invalidateAll();
 			await goto(resolve('/'));
@@ -58,10 +62,12 @@
 		class="w-full rounded-lg border p-3"
 	/>
 	<input
+		type="password"
 		required
-		autocomplete="off"
-		placeholder="Código de invitación"
-		bind:value={code}
+		minlength="12"
+		autocomplete="new-password"
+		placeholder="Repetir contraseña"
+		bind:value={password2}
 		class="w-full rounded-lg border p-3"
 	/>
 	{#if error}<p class="text-red-600">{error}</p>{/if}

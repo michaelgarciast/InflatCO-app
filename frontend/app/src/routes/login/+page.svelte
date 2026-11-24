@@ -66,6 +66,9 @@
 		{loading ? 'Entrando…' : 'Entrar'}
 	</button>
 	<p class="text-center text-sm">
+		<a href={resolve('/recuperar')} class="underline">¿Olvidaste tu contraseña?</a>
+	</p>
+	<p class="text-center text-sm">
 		¿No tienes cuenta? <a href={resolve('/registro')} class="underline">Regístrate</a>
 	</p>
 </form>
