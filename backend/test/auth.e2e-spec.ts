@@ -11,11 +11,16 @@ import { AppModule } from '../src/app.module.js';
 import { users } from '../src/db/schema.js';
 import type * as schema from '../src/db/schema.js';
 
+// El registro necesita SIGNUP_CODE; process.env tiene prioridad sobre el .env.
+process.env.SIGNUP_CODE ??= 'e2e-signup-code-123456';
+const signupCode = process.env.SIGNUP_CODE;
+
 describe('Auth (e2e)', () => {
   let app: INestApplication<App>;
   let proxySecret: string;
   const testEmail = 'phase1-test@example.com';
   const testPassword = 'ValidPassword123';
+  const signupEmail = 'signup-test@example.com';
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -43,6 +48,7 @@ describe('Auth (e2e)', () => {
   afterAll(async () => {
     const db = app.get<NeonDatabase<typeof schema>>(getDrizzleToken());
     await db.delete(users).where(eq(users.email, testEmail));
+    await db.delete(users).where(eq(users.email, signupEmail));
     await app.close();
   });
 
@@ -147,5 +153,55 @@ describe('Auth (e2e)', () => {
       .set('x-client-ip', clientIp)
       .send({ email: throttleEmail, password: 'wrong' })
       .expect(429);
+  });
+
+  const signUp = (body: object, ip: string) =>
+    request(app.getHttpServer())
+      .post('/auth/sign-up')
+      .set('x-proxy-secret', proxySecret)
+      .set('x-client-ip', ip)
+      .send(body);
+
+  it('sign-up con código inválido -> 403', async () => {
+    await signUp(
+      { email: signupEmail, password: testPassword, code: 'wrong' },
+      '198.51.100.10',
+    ).expect(403);
+  });
+
+  it('sign-up con contraseña corta -> 400', async () => {
+    await signUp(
+      { email: signupEmail, password: 'short', code: signupCode },
+      '198.51.100.11',
+    ).expect(400);
+  });
+
+  it('sign-up OK -> 201, cookie y /me', async () => {
+    const res = await signUp(
+      { email: signupEmail, password: testPassword, code: signupCode },
+      '198.51.100.12',
+    ).expect(201);
+
+    const cookies = res.headers['set-cookie'];
+    const cookieHeader = Array.isArray(cookies) ? cookies.join('; ') : cookies;
+    expect(cookieHeader).toContain('__Host-session=');
+
+    const me = await request(app.getHttpServer())
+      .get('/me')
+      .set('x-proxy-secret', proxySecret)
+      .set('Cookie', cookieHeader)
+      .expect(200);
+    expect(me.body.email).toBe(signupEmail);
+  });
+
+  it('sign-up con correo existente -> 409', async () => {
+    await signUp(
+      {
+        email: signupEmail.toUpperCase(),
+        password: testPassword,
+        code: signupCode,
+      },
+      '198.51.100.13',
+    ).expect(409);
   });
 });

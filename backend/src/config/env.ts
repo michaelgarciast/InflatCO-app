@@ -10,6 +10,8 @@ const envSchema = z.object({
   S3_BUCKET: z.string().min(1),
   PROXY_SECRET: z.string().min(32),
   GOOGLE_GENERATIVE_AI_API_KEY: z.string().min(1),
+  // Sin SIGNUP_CODE el registro queda deshabilitado.
+  SIGNUP_CODE: z.string().min(16).optional(),
   AI_MODEL: z.string().default('gemini-3.5-flash-lite'),
 });
 
